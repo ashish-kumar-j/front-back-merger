@@ -2,7 +2,465 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Document Merge & Compress</title>
+<title>Front/Back Image Merger</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel-border: #2a2f3a;
+    --accent: #4f8cff;
+    --accent-soft: rgba(79,140,255,0.12);
+    --text: #e8eaed;
+    --text-dim: #9aa0ac;
+    --good: #36c98a;
+    --danger: #ff5d6c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 32px 20px 60px;
+  }
+  h1 {
+    font-size: 22px;
+    font-weight: 600;
+    margin: 0 0 4px;
+    text-align: center;
+  }
+  p.sub {
+    text-align: center;
+    color: var(--text-dim);
+    margin: 0 0 28px;
+    font-size: 14px;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; }
+
+  .controls {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  .controls label {
+    font-size: 13px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  select {
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+
+  .dropzone {
+    border: 2px dashed var(--panel-border);
+    border-radius: 14px;
+    background: var(--panel);
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .dropzone.drag {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .dropzone .icon { font-size: 32px; margin-bottom: 8px; }
+  .dropzone .main { font-size: 15px; margin-bottom: 4px; }
+  .dropzone .hint { font-size: 12.5px; color: var(--text-dim); }
+  input[type=file] { display: none; }
+
+  .pairs { margin-top: 28px; display: flex; flex-direction: column; gap: 14px; }
+
+  .pair-card {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .pair-num {
+    font-size: 12px;
+    color: var(--text-dim);
+    width: 22px;
+    flex-shrink: 0;
+  }
+  .slot {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #11141a;
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    min-height: 56px;
+  }
+  .slot img {
+    width: 44px;
+    height: 44px;
+    object-fit: cover;
+    border-radius: 5px;
+    border: 1px solid var(--panel-border);
+    flex-shrink: 0;
+  }
+  .slot .name {
+    font-size: 12.5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .slot .empty-text {
+    font-size: 12px;
+    color: var(--text-dim);
+    font-style: italic;
+  }
+  .swap-btn {
+    background: none;
+    border: 1px solid var(--panel-border);
+    color: var(--text-dim);
+    border-radius: 6px;
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .swap-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .remove-btn {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 16px;
+    width: 26px;
+    flex-shrink: 0;
+  }
+  .remove-btn:hover { color: var(--danger); }
+
+  .actions {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 28px;
+  }
+  button.primary {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 28px;
+    font-size: 14.5px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button.primary:disabled {
+    background: #2a2f3a;
+    color: var(--text-dim);
+    cursor: not-allowed;
+  }
+  button.secondary {
+    background: none;
+    border: 1px solid var(--panel-border);
+    color: var(--text-dim);
+    border-radius: 8px;
+    padding: 12px 20px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  button.secondary:hover { color: var(--text); border-color: var(--text-dim); }
+
+  .status {
+    text-align: center;
+    margin-top: 14px;
+    font-size: 13px;
+    color: var(--text-dim);
+    min-height: 18px;
+  }
+  .status.good { color: var(--good); }
+  .status.danger { color: var(--danger); }
+
+  .footnote {
+    text-align: center;
+    margin-top: 36px;
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Front / Back Image Merger</h1>
+  <p class="sub">Drop image pairs in — each pair becomes one A4 page, front on top, back below. Runs entirely in your browser; nothing is uploaded anywhere.</p>
+
+  <div class="controls">
+    <label>Orientation
+      <select id="orientation">
+        <option value="portrait">Portrait</option>
+        <option value="landscape">Landscape</option>
+      </select>
+    </label>
+    <label>Layout
+      <select id="layout">
+        <option value="stacked">Stacked (front above back)</option>
+        <option value="sidebyside">Side by side</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="dropzone" id="dropzone">
+    <div class="icon">📎</div>
+    <div class="main">Drag image files here, or click to browse</div>
+    <div class="hint">Select files in pairs — order matters (1st = front, 2nd = back, 3rd = front, 4th = back...)</div>
+    <input type="file" id="fileInput" multiple accept="image/*">
+  </div>
+
+  <div class="pairs" id="pairsList"></div>
+
+  <div class="actions">
+    <button class="secondary" id="clearBtn">Clear all</button>
+    <button class="primary" id="mergeBtn" disabled>Generate PDF</button>
+  </div>
+  <div class="status" id="status"></div>
+
+  <div class="footnote">
+    Each completed pair (front + back) becomes one A4 page.<br>
+    Tip: not every pair needs to be filled — single images are skipped from output until paired.
+  </div>
+</div>
+
+<script>
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const pairsList = document.getElementById('pairsList');
+const mergeBtn = document.getElementById('mergeBtn');
+const clearBtn = document.getElementById('clearBtn');
+const statusEl = document.getElementById('status');
+const orientationSel = document.getElementById('orientation');
+const layoutSel = document.getElementById('layout');
+
+// pairs = [{front: {file, url, name} | null, back: {...} | null}, ...]
+let pairs = [];
+
+function setStatus(msg, cls) {
+  statusEl.textContent = msg;
+  statusEl.className = 'status' + (cls ? ' ' + cls : '');
+}
+
+function fileToEntry(file) {
+  return { file, url: URL.createObjectURL(file), name: file.name };
+}
+
+function addFiles(fileList) {
+  const files = Array.from(fileList).filter(f => f.type.startsWith('image/'));
+  if (!files.length) return;
+
+  // Fill into existing empty slots first, in order, then create new pairs.
+  let i = 0;
+  while (i < files.length) {
+    let placed = false;
+    for (const p of pairs) {
+      if (!p.front) { p.front = fileToEntry(files[i]); i++; placed = true; break; }
+      if (!p.back) { p.back = fileToEntry(files[i]); i++; placed = true; break; }
+    }
+    if (!placed) {
+      const p = { front: fileToEntry(files[i]), back: null };
+      i++;
+      if (i < files.length) { p.back = fileToEntry(files[i]); i++; }
+      pairs.push(p);
+    }
+  }
+  render();
+}
+
+function render() {
+  pairsList.innerHTML = '';
+  pairs.forEach((p, idx) => {
+    const card = document.createElement('div');
+    card.className = 'pair-card';
+
+    const num = document.createElement('div');
+    num.className = 'pair-num';
+    num.textContent = (idx + 1) + '.';
+    card.appendChild(num);
+
+    card.appendChild(makeSlot(p, 'front', idx));
+
+    const swap = document.createElement('button');
+    swap.className = 'swap-btn';
+    swap.title = 'Swap front/back';
+    swap.textContent = '⇄';
+    swap.onclick = () => { const t = p.front; p.front = p.back; p.back = t; render(); };
+    card.appendChild(swap);
+
+    card.appendChild(makeSlot(p, 'back', idx));
+
+    const remove = document.createElement('button');
+    remove.className = 'remove-btn';
+    remove.title = 'Remove pair';
+    remove.textContent = '✕';
+    remove.onclick = () => { pairs.splice(idx, 1); render(); };
+    card.appendChild(remove);
+
+    pairsList.appendChild(card);
+  });
+
+  const completePairs = pairs.filter(p => p.front && p.back).length;
+  mergeBtn.disabled = completePairs === 0;
+  if (pairs.length) {
+    setStatus(completePairs + ' of ' + pairs.length + ' pair(s) complete and ready to merge.');
+  } else {
+    setStatus('');
+  }
+}
+
+function makeSlot(pair, side, idx) {
+  const slot = document.createElement('div');
+  slot.className = 'slot';
+  const entry = pair[side];
+  if (entry) {
+    const img = document.createElement('img');
+    img.src = entry.url;
+    slot.appendChild(img);
+    const name = document.createElement('div');
+    name.className = 'name';
+    name.textContent = (side === 'front' ? 'Front: ' : 'Back: ') + entry.name;
+    slot.appendChild(name);
+  } else {
+    const span = document.createElement('div');
+    span.className = 'empty-text';
+    span.textContent = (side === 'front' ? 'Front' : 'Back') + ' — empty, drop an image here';
+    slot.appendChild(span);
+
+    slot.ondragover = (e) => { e.preventDefault(); slot.style.borderColor = 'var(--accent)'; };
+    slot.ondragleave = () => { slot.style.borderColor = 'var(--panel-border)'; };
+    slot.ondrop = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      slot.style.borderColor = 'var(--panel-border)';
+      const f = Array.from(e.dataTransfer.files).find(f => f.type.startsWith('image/'));
+      if (f) { pair[side] = fileToEntry(f); render(); }
+    };
+  }
+  return slot;
+}
+
+dropzone.addEventListener('click', (e) => {
+  if (e.target.closest('.slot')) return;
+  fileInput.click();
+});
+dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropzone.classList.remove('drag');
+  addFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', (e) => {
+  addFiles(e.target.files);
+  fileInput.value = '';
+});
+clearBtn.addEventListener('click', () => { pairs = []; render(); });
+
+function loadImageDims(url) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight, img });
+    img.src = url;
+  });
+}
+
+mergeBtn.addEventListener('click', async () => {
+  const complete = pairs.filter(p => p.front && p.back);
+  if (!complete.length) return;
+
+  mergeBtn.disabled = true;
+  setStatus('Generating PDF…');
+
+  try {
+    const { jsPDF } = window.jspdf;
+    const orientation = orientationSel.value;
+    const layout = layoutSel.value;
+    const doc = new jsPDF({ orientation, unit: 'mm', format: 'a4' });
+
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 10;
+    const gap = 6;
+
+    for (let p = 0; p < complete.length; p++) {
+      if (p > 0) doc.addPage();
+      const pair = complete[p];
+
+      const frontDims = await loadImageDims(pair.front.url);
+      const backDims = await loadImageDims(pair.back.url);
+
+      if (layout === 'stacked') {
+        const slotW = pageW - margin * 2;
+        const slotH = (pageH - margin * 2 - gap) / 2;
+        placeImage(doc, pair.front.url, frontDims, margin, margin, slotW, slotH);
+        placeImage(doc, pair.back.url, backDims, margin, margin + slotH + gap, slotW, slotH);
+      } else {
+        const slotH = pageH - margin * 2;
+        const slotW = (pageW - margin * 2 - gap) / 2;
+        placeImage(doc, pair.front.url, frontDims, margin, margin, slotW, slotH);
+        placeImage(doc, pair.back.url, backDims, margin + slotW + gap, margin, slotW, slotH);
+      }
+
+      doc.setFontSize(8);
+      doc.setTextColor(150);
+      doc.text('Page ' + (p + 1) + ' of ' + complete.length, pageW / 2, pageH - 4, { align: 'center' });
+    }
+
+    doc.save('merged-pairs.pdf');
+    setStatus('PDF generated and downloaded — merged-pairs.pdf', 'good');
+  } catch (err) {
+    console.error(err);
+    setStatus('Something went wrong generating the PDF: ' + err.message, 'danger');
+  } finally {
+    mergeBtn.disabled = false;
+  }
+});
+
+function placeImage(doc, url, dims, boxX, boxY, boxW, boxH) {
+  // Fit image into box, preserving aspect ratio, centered.
+  const imgRatio = dims.w / dims.h;
+  const boxRatio = boxW / boxH;
+  let drawW, drawH;
+  if (imgRatio > boxRatio) {
+    drawW = boxW;
+    drawH = boxW / imgRatio;
+  } else {
+    drawH = boxH;
+    drawW = boxH * imgRatio;
+  }
+  const x = boxX + (boxW - drawW) / 2;
+  const y = boxY + (boxH - drawH) / 2;
+
+  // Draw a light border box for reference
+  doc.setDrawColor(220);
+  doc.rect(boxX, boxY, boxW, boxH);
+
+  const format = url.includes('image/png') ? 'PNG' : 'JPEG';
+  try {
+    doc.addImage(url, format, x, y, drawW, drawH);
+  } catch (e) {
+    // Fallback: try the other format if mime sniffing was wrong
+    doc.addImage(url, format === 'PNG' ? 'JPEG' : 'PNG', x, y, drawW, drawH);
+  }
+}
+</script>
+</body>
+</html>
