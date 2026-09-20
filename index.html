@@ -7,9 +7,112 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
 <script src="utif.js"></script>
-<script src="app.js"></script>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel-border: #2a2f3a;
+    --accent: #4f8cff;
+    --accent-soft: rgba(79,140,255,0.12);
+    --text: #e8eaed;
+    --text-dim: #9aa0ac;
+    --good: #36c98a;
+    --danger: #ff5d6c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 32px 20px 60px;
+  }
+  h1 { font-size: 22px; font-weight: 600; margin: 0 0 4px; text-align: center; }
+  p.sub { text-align: center; color: var(--text-dim); margin: 0 0 20px; font-size: 14px; }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  .mode-switch { display: flex; justify-content: center; gap: 8px; margin-bottom: 28px; }
+  .mode-btn { background: var(--panel); border: 1px solid var(--panel-border); color: var(--text-dim); border-radius: 8px; padding: 10px 22px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .mode-btn.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .controls { display: flex; justify-content: center; gap: 24px; margin-bottom: 24px; flex-wrap: wrap; }
+  .controls label { font-size: 13px; color: var(--text-dim); display: flex; align-items: center; gap: 8px; }
+  select { background: var(--panel); color: var(--text); border: 1px solid var(--panel-border); border-radius: 6px; padding: 6px 10px; font-size: 13px; }
+  .dropzone { border: 2px dashed var(--panel-border); border-radius: 14px; background: var(--panel); padding: 40px 20px; text-align: center; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+  .dropzone.drag { border-color: var(--accent); background: var(--accent-soft); }
+  .dropzone .icon { font-size: 32px; margin-bottom: 8px; }
+  .dropzone .main { font-size: 15px; margin-bottom: 4px; }
+  .dropzone .hint { font-size: 12.5px; color: var(--text-dim); }
+  input[type=file] { display: none; }
+  .pairs { margin-top: 28px; display: flex; flex-direction: column; gap: 14px; }
+  .pair-card { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 12px; padding: 14px 16px; display: flex; align-items: center; gap: 14px; }
+  .pair-num { font-size: 12px; color: var(--text-dim); width: 22px; flex-shrink: 0; }
+  .slot { flex: 1; display: flex; align-items: center; gap: 10px; background: #11141a; border: 1px solid var(--panel-border); border-radius: 8px; padding: 8px 10px; min-height: 56px; }
+  .slot img { width: 44px; height: 44px; object-fit: cover; border-radius: 5px; border: 1px solid var(--panel-border); flex-shrink: 0; }
+  .slot .name { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .slot .empty-text { font-size: 12px; color: var(--text-dim); font-style: italic; }
+  .swap-btn { background: none; border: 1px solid var(--panel-border); color: var(--text-dim); border-radius: 6px; width: 30px; height: 30px; flex-shrink: 0; cursor: pointer; font-size: 14px; }
+  .swap-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .remove-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 16px; width: 26px; flex-shrink: 0; }
+  .remove-btn:hover { color: var(--danger); }
+  .file-card { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 12px; padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
+  .file-card img { width: 40px; height: 40px; object-fit: cover; border-radius: 5px; border: 1px solid var(--panel-border); flex-shrink: 0; }
+  .file-card .filebadge { width: 40px; height: 40px; border-radius: 5px; border: 1px solid var(--panel-border); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--text-dim); background: #11141a; }
+  .file-card .info { flex: 1; min-width: 0; }
+  .file-card .name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-card .meta { font-size: 11.5px; color: var(--text-dim); margin-top: 2px; }
+  .file-card .meta .arrow { color: var(--accent); }
+  .file-card .meta.good-meta .arrow + span { color: var(--good); }
+  .file-card .cb-wrap { flex-shrink: 0; display: flex; align-items: center; justify-content: center; width: 24px; }
+  .file-card input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent); }
+  .file-card input[type=checkbox]:disabled { opacity: 0.3; cursor: not-allowed; }
+  .file-card.selected { border-color: var(--accent); background: var(--accent-soft); }
+  .actions { display: flex; justify-content: center; gap: 12px; margin-top: 28px; }
+  button.primary { background: var(--accent); color: white; border: none; border-radius: 8px; padding: 12px 28px; font-size: 14.5px; font-weight: 600; cursor: pointer; }
+  button.primary:disabled { background: #2a2f3a; color: var(--text-dim); cursor: not-allowed; }
+  button.secondary { background: none; border: 1px solid var(--panel-border); color: var(--text-dim); border-radius: 8px; padding: 12px 20px; font-size: 14px; cursor: pointer; }
+  button.secondary:hover { color: var(--text); border-color: var(--text-dim); }
+  .status { text-align: center; margin-top: 14px; font-size: 13px; color: var(--text-dim); min-height: 18px; }
+  .status.good { color: var(--good); }
+  .status.danger { color: var(--danger); }
+  .footnote { text-align: center; margin-top: 36px; font-size: 12px; color: var(--text-dim); line-height: 1.6; }
+  .hidden { display: none !important; }
+  .cloud-section { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 12px; padding: 16px 20px; }
+  .cloud-section-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 14px; }
+  .cloud-creds-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }
+  .cloud-cred-block { background: #11141a; border: 1px solid var(--panel-border); border-radius: 8px; padding: 12px 14px; }
+  .cloud-cred-label { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+  .cred-help { margin-left: auto; font-size: 11px; color: var(--accent); text-decoration: none; font-weight: 400; }
+  .cred-help:hover { text-decoration: underline; }
+  .cred-input { width: 100%; background: var(--panel); border: 1px solid var(--panel-border); border-radius: 6px; color: var(--text); font-size: 12px; padding: 7px 10px; outline: none; }
+  .cred-input:focus { border-color: var(--accent); }
+  .cred-note { font-size: 11px; color: var(--text-dim); margin-top: 6px; line-height: 1.5; }
+  .cloud-logo { width: 22px; height: 22px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+  .cloud-logo.gd { background: #4285f4; color: white; }
+  .cloud-logo.db { background: #0061ff; color: white; }
+  .cloud-logo.od { background: #0078d4; color: white; }
+  .cloud-logo.cu { background: #555; color: white; }
+  .cloud-service-btn { display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--panel-border); color: var(--text); border-radius: 8px; padding: 9px 16px; font-size: 13px; cursor: pointer; transition: border-color 0.15s; }
+  .cloud-service-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .cloud-service-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .cloud-import-card { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 10px; padding: 10px 14px; display: flex; align-items: center; gap: 10px; font-size: 13px; }
+  .cloud-import-card .ci-icon { font-size: 20px; flex-shrink: 0; }
+  .cloud-import-card .ci-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cloud-import-card .ci-size { font-size: 11px; color: var(--text-dim); flex-shrink: 0; }
+  .cloud-import-card .remove-btn { flex-shrink: 0; }
+</style>
 </head>
 <body>
-LOADING_PLACEHOLDER
+<div class="wrap">
+  <h1>Document Merge &amp; Compress</h1>
+  <p class="sub">Runs entirely in your browser — nothing is uploaded anywhere.</p>
+  <div class="mode-switch">
+    <button class="mode-btn active" id="modeMergeBtn">Merge front/back pairs</button>
+    <button class="mode-btn" id="modeCompressBtn">Reduce file size</button>
+    <button class="mode-btn" id="modeCloudBtn">☁️ Cloud</button>
+  </div>
+  <div id="mergePanel"></div>
+  <div id="compressPanel" class="hidden"></div>
+  <div id="cloudPanel" class="hidden"></div>
+</div>
+<script src="app.js"></script>
 </body>
 </html>
